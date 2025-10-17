@@ -14,11 +14,13 @@ def index():
     if request.method == 'POST':
         filter_choice = request.form.get('filter_choice')
 
+        # New file upload
         if 'image' in request.files and request.files['image'].filename != '':
             file = request.files['image']
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(filepath)
             session['last_image'] = file.filename
+        # Use last uploaded image
         elif 'last_image' in session:
             file = session['last_image']
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], file)
@@ -28,6 +30,7 @@ def index():
         img = cv2.imread(filepath)
         output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'output.jpg')
 
+        # Apply selected filter
         if filter_choice == 'grayscale':
             processed = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         elif filter_choice == 'blur':
@@ -41,6 +44,7 @@ def index():
             processed = cv2.transform(img, kernel)
             processed = np.clip(processed, 0, 255).astype(np.uint8)
 
+        # Save output image
         if len(processed.shape) == 2:
             cv2.imwrite(output_path, processed)
         else:
@@ -51,5 +55,6 @@ def index():
     return render_template('index.html')
 
 if __name__ == "__main__":
+    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
