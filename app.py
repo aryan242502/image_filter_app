@@ -9,18 +9,27 @@ app.secret_key = 'your_secret_key'
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+MAX_DIM = 800
+
+def resize_image(img):
+    h, w = img.shape[:2]
+    if max(h, w) > MAX_DIM:
+        scale = MAX_DIM / max(h, w)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        img = cv2.resize(img, (new_w, new_h))
+    return img
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
         filter_choice = request.form.get('filter_choice')
 
-        # New file upload
         if 'image' in request.files and request.files['image'].filename != '':
             file = request.files['image']
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(filepath)
             session['last_image'] = file.filename
-        # Use last uploaded image
         elif 'last_image' in session:
             file = session['last_image']
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], file)
@@ -28,9 +37,10 @@ def index():
             return render_template('index.html', message="Please upload an image first!")
 
         img = cv2.imread(filepath)
+        img = resize_image(img)
+
         output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'output.jpg')
 
-        # Apply selected filter
         if filter_choice == 'grayscale':
             processed = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         elif filter_choice == 'blur':
@@ -44,7 +54,6 @@ def index():
             processed = cv2.transform(img, kernel)
             processed = np.clip(processed, 0, 255).astype(np.uint8)
 
-        # Save output image
         if len(processed.shape) == 2:
             cv2.imwrite(output_path, processed)
         else:
