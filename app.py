@@ -15,55 +15,67 @@ def resize_image(img):
     h, w = img.shape[:2]
     if max(h, w) > MAX_DIM:
         scale = MAX_DIM / max(h, w)
-        new_w = int(w * scale)
-        new_h = int(h * scale)
-        img = cv2.resize(img, (new_w, new_h))
+        img = cv2.resize(img, (int(w*scale), int(h*scale)))
     return img
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    blur_level = 10
+    canny_low = 50
+    canny_high = 150
+    sepia_level = 1.0
+
     if request.method == 'POST':
         filter_choice = request.form.get('filter_choice')
+        blur_level = int(request.form.get('blur_level', 10))
+        canny_low = int(request.form.get('canny_low', 50))
+        canny_high = int(request.form.get('canny_high', 150))
+        sepia_level = float(request.form.get('sepia_level', 1.0))
 
-        if 'image' in request.files and request.files['image'].filename != '':
-            file = request.files['image']
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filepath)
-            session['last_image'] = file.filename
+        uploaded_file = request.files.get('image')
+        if uploaded_file and uploaded_file.filename != '':
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
+            uploaded_file.save(filepath)
+            session['last_image'] = uploaded_file.filename
         elif 'last_image' in session:
-            file = session['last_image']
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], session['last_image'])
         else:
-            return render_template('index.html', message="Please upload an image first!")
+            return render_template('index.html', message="Please upload an image first!",
+                                   blur_level=blur_level, canny_low=canny_low,
+                                   canny_high=canny_high, sepia_level=sepia_level)
 
         img = cv2.imread(filepath)
         img = resize_image(img)
-
         output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'output.jpg')
 
         if filter_choice == 'grayscale':
             processed = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         elif filter_choice == 'blur':
-            processed = cv2.blur(img, (10,10))
+            processed = cv2.blur(img, (blur_level, blur_level))
         elif filter_choice == 'canny':
-            processed = cv2.Canny(img, 100, 200)
+            processed = cv2.Canny(img, canny_low, canny_high)
         elif filter_choice == 'sepia':
-            kernel = np.array([[0.272,0.534,0.131],
-                               [0.349,0.686,0.168],
-                               [0.393,0.769,0.189]])
+            kernel = np.array([[0.272*sepia_level,0.534*sepia_level,0.131*sepia_level],
+                               [0.349*sepia_level,0.686*sepia_level,0.168*sepia_level],
+                               [0.393*sepia_level,0.769*sepia_level,0.189*sepia_level]])
             processed = cv2.transform(img, kernel)
-            processed = np.clip(processed, 0, 255).astype(np.uint8)
+            processed = np.clip(processed,0,255).astype(np.uint8)
+        else:
+            processed = img
 
         if len(processed.shape) == 2:
             cv2.imwrite(output_path, processed)
         else:
             cv2.imwrite(output_path, cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
 
-        return render_template('index.html', original_image=session['last_image'], output_image='output.jpg')
+        return render_template('index.html', original_image=session['last_image'], output_image='output.jpg',
+                               blur_level=blur_level, canny_low=canny_low,
+                               canny_high=canny_high, sepia_level=sepia_level,
+                               filter_choice=filter_choice)
 
-    return render_template('index.html')
+    return render_template('index.html', blur_level=blur_level, canny_low=canny_low,
+                           canny_high=canny_high, sepia_level=sepia_level)
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
